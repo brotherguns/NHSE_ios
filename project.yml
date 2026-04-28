@@ -1,4 +1,4 @@
-Name: NHSEiOS
+name: NHSEiOS
 options:
   bundleIdPrefix: com.brotherguns
   deploymentTarget:
