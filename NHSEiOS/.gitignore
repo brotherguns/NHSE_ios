@@ -1,0 +1,22 @@
+# Xcode
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+build/
+
+# macOS
+.DS_Store
+
+# Swift PM
+.swiftpm/
+.build/
+Package.resolved
+
+# CI artifacts
+*.ipa
+_ipa_staging/
+
+# Misc
+*.log
+*.swp

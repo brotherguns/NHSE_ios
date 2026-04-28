@@ -1,0 +1,126 @@
+name: Build Unsigned IPA
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build NHSEiOS (unsigned)
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    env:
+      PROJECT_NAME: NHSEiOS
+      SCHEME: NHSEiOS
+      CONFIGURATION: Release
+      DERIVED_DATA: build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve Swift package dependencies (best-effort)
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project "${PROJECT_NAME}.xcodeproj" \
+            -scheme  "${SCHEME}" || true
+
+      - name: Build for iOS device (no codesign)
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "${PROJECT_NAME}.xcodeproj" \
+            -scheme  "${SCHEME}" \
+            -configuration "${CONFIGURATION}" \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "${DERIVED_DATA}" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            ENABLE_BITCODE=NO \
+            clean build
+
+      - name: Locate built .app
+        id: locate
+        run: |
+          set -euo pipefail
+          PRODUCTS_DIR="${DERIVED_DATA}/Build/Products/${CONFIGURATION}-iphoneos"
+          if [ ! -d "${PRODUCTS_DIR}" ]; then
+            echo "::error::Products dir missing: ${PRODUCTS_DIR}"
+            ls -laR "${DERIVED_DATA}/Build/Products" || true
+            exit 1
+          fi
+          APP_PATH=$(find "${PRODUCTS_DIR}" -maxdepth 1 -type d -name "*.app" | head -n 1)
+          if [ -z "${APP_PATH}" ]; then
+            echo "::error::No .app produced in ${PRODUCTS_DIR}"
+            ls -la "${PRODUCTS_DIR}"
+            exit 1
+          fi
+          echo "Found app at: ${APP_PATH}"
+          echo "APP_PATH=${APP_PATH}"           >> "${GITHUB_OUTPUT}"
+          echo "PRODUCTS_DIR=${PRODUCTS_DIR}"   >> "${GITHUB_OUTPUT}"
+
+      - name: Package unsigned IPA
+        id: package
+        run: |
+          set -euo pipefail
+          APP_PATH="${{ steps.locate.outputs.APP_PATH }}"
+          STAGING="$(pwd)/_ipa_staging"
+          rm -rf "${STAGING}"
+          mkdir -p "${STAGING}/Payload"
+          cp -R "${APP_PATH}" "${STAGING}/Payload/"
+
+          IPA_NAME="${PROJECT_NAME}-unsigned.ipa"
+          IPA_PATH="$(pwd)/${IPA_NAME}"
+          ( cd "${STAGING}" && zip -qry "${IPA_PATH}" "Payload" )
+          rm -rf "${STAGING}"
+
+          ls -lh "${IPA_PATH}"
+          echo "Contents:"
+          unzip -l "${IPA_PATH}" | head -n 40
+          echo "IPA_PATH=${IPA_PATH}" >> "${GITHUB_OUTPUT}"
+          echo "IPA_NAME=${IPA_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload unsigned .ipa as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-unsigned-ipa
+          path: ${{ steps.package.outputs.IPA_PATH }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload xcodebuild logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            ${{ env.DERIVED_DATA }}/Logs/Build/*.xcactivitylog
+          if-no-files-found: ignore
+          retention-days: 7
