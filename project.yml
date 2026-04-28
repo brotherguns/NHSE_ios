@@ -1,4 +1,4 @@
-name: NHSEiOS
+Name: NHSEiOS
 options:
   bundleIdPrefix: com.brotherguns
   deploymentTarget:
@@ -24,6 +24,7 @@ targets:
       - path: NHSEiOS
         excludes:
           - "**/.DS_Store"
+          - "App/Info.plist"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.brotherguns.NHSEiOS
