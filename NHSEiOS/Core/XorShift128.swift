@@ -8,10 +8,10 @@
 import Foundation
 
 public struct XorShift128 {
-    private var a: UInt32
-    private var b: UInt32
-    private var c: UInt32
-    private var d: UInt32
+    @usableFromInline var a: UInt32
+    @usableFromInline var b: UInt32
+    @usableFromInline var c: UInt32
+    @usableFromInline var d: UInt32
 
     private static let mersenne: UInt32 = 0x6C078965
 

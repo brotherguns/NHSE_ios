@@ -43,31 +43,14 @@ public final class SaveSession: ObservableObject {
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let s = try HorizonSave.fromFolder(folderURL)
-                let n = Self.computeNotes(for: s)
-                await MainActor.run {
-                    guard let self else { return }
-                    self.save = s
-                    self.notes = n
-                    self.status = .loaded
-                }
-            } catch {
-                let msg = (error as? CustomStringConvertible)?.description ?? error.localizedDescription
-                await MainActor.run {
-                    guard let self else { return }
-                    self.status = .error(msg)
-                }
-            }
-        }
-    }
-
-    public func load(zipURL: URL) {
+                let n = await Self.computeNotes(for: s)
         status = .loading
         notes = []
         save  = nil
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let s = try HorizonSave.fromZip(zipURL)
-                let n = Self.computeNotes(for: s)
+                let n = await Self.computeNotes(for: s)
                 await MainActor.run {
                     guard let self else { return }
                     self.save = s

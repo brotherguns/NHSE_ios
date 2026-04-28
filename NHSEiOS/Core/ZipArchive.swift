@@ -49,7 +49,7 @@ public struct ZipEntry {
 
 public final class ZipArchive {
 
-    public private(set) var entries: [ZipEntry] = []
+    public var entries: [ZipEntry] = []
 
     public init() {}
 
@@ -187,14 +187,14 @@ public final class ZipArchive {
         for entry in entries {
             let lhOffset = UInt32(out.count)
             let nameBytes = Array(entry.name.utf8)
-            let crc = entry.data.isEmpty ? 0 : crc32(entry.data)
-            let (date, time) = dateToDosDateTime(entry.modificationDate)
+            let crc = entry.data.isEmpty ? 0 : ZipArchive.crc32(entry.data)
+            let (date, time) = ZipArchive.dateToDosDateTime(entry.modificationDate)
 
             // Try deflate. If output isn't smaller, store.
             var method: UInt16 = 0
             var payload = entry.data
             if !entry.data.isEmpty {
-                if let deflated = try? deflate(entry.data), deflated.count < entry.data.count {
+                if let deflated = try? ZipArchive.deflate(entry.data), deflated.count < entry.data.count {
                     method = 8
                     payload = deflated
                 }
